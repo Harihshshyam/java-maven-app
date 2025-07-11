@@ -1,52 +1,55 @@
 pipeline {
     agent any
 
+    tools {
+        // Ensure Maven is installed and configured in Global Tool Configuration
+        maven 'Maven 3.8.1'
+        // Make sure JDK 17 (or your version) is configured there as well
+        jdk 'JDK17'
+    }
+
     stages {
-        stage('Build Maven App') {
+        stage('Checkout') {
             steps {
-                sh 'mvn clean package'
+                // Pull the latest code from GitHub
+                git url: 'https://github.com/Harihshshyam/java-maven-app.git', branch: 'main'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Compile & Test') {
             steps {
-                script {
-                    docker.build("sagar592/java-maven-app:${BUILD_NUMBER}")
+                // Compile, run tests, and fail the build if tests fail
+                sh 'mvn clean compile test'
+            }
+            post {
+                always {
+                    // Publish JUnit test reports
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Package') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-cred-id',
-                    usernameVariable: 'DOCKERHUB_USER',
-                    passwordVariable: 'DOCKERHUB_PASS'
-                )]) {
-                    sh '''
-                        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
-                        docker push sagar592/java-maven-app:${BUILD_NUMBER}
-                        docker tag sagar592/java-maven-app:${BUILD_NUMBER} sagar592/java-maven-app:latest
-                        docker push sagar592/java-maven-app:latest
-                    '''
-                }
+                // Package into a JAR (skips tests)
+                sh 'mvn package -DskipTests'
             }
         }
 
-        // stage('Deploy to Kubernetes') {
-        //     steps {
-        //         sh 'kubectl apply -f k8s/deployment.yaml'
-        //         sh 'kubectl apply -f k8s/service.yaml'
-        //     }
-        // }
+        stage('Archive Artifact') {
+            steps {
+                // Save the built JAR in Jenkins so you can download it later
+                archiveArtifacts artifacts: 'target/java-maven-app-*.jar', fingerprint: true
+            }
+        }
     }
 
     post {
         success {
-            echo "✅ Build and Push Successful!"
+            echo '✅ Build succeeded!'
         }
         failure {
-            echo "❌ Build or Push Failed"
+            echo '❌ Build failed. Check the console output for errors.'
         }
     }
 }
