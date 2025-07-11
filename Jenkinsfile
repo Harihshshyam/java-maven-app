@@ -11,7 +11,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("sagar592/java-maven-app:${BUILD_NUMBER}")
+                    // build image into a variable
+                    def img = docker.build("sagar592/java-maven-app:${BUILD_NUMBER}")
                 }
             }
         }
@@ -19,14 +20,18 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    // pass the credential ID directly—no environment interpolation needed
+                    // Explicitly log in, tag and push using withRegistry
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred-id') {
-                        docker.image("sagar592/java-maven-app:${BUILD_NUMBER}").push()
+                        // re‑fetch the image by name and tag
+                        def img = docker.image("sagar592/java-maven-app:${BUILD_NUMBER}")
+                        img.push()     // push this build number tag
+                        img.push('latest') // optional: also push as “latest”
                     }
                 }
             }
         }
 
+        // Uncomment once k8s is ready
         // stage('Deploy to Kubernetes') {
         //     steps {
         //         sh 'kubectl apply -f k8s/deployment.yaml'
