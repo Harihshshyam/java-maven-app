@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKERHUB_CREDENTIALS = 'dockerhub-cred-id'
-    }
-
     stages {
         stage('Build Maven App') {
             steps {
@@ -23,11 +19,28 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS) {
+                    // pass the credential ID directly—no environment interpolation needed
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred-id') {
                         docker.image("sagar592/java-maven-app:${BUILD_NUMBER}").push()
                     }
                 }
             }
+        }
+
+        // stage('Deploy to Kubernetes') {
+        //     steps {
+        //         sh 'kubectl apply -f k8s/deployment.yaml'
+        //         sh 'kubectl apply -f k8s/service.yaml'
+        //     }
+        // }
+    }
+
+    post {
+        success {
+            echo "✅ Build and Push Successful!"
+        }
+        failure {
+            echo "❌ Build or Push Failed"
         }
     }
 }
