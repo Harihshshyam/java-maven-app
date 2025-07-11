@@ -2,19 +2,11 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "harishyam/java-maven-app"
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        KUBECONFIG_CREDENTIALS_ID = 'kubeconfig'
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred-id')
     }
 
     stages {
-        stage('Clone Code') {
-            steps {
-                git branch: 'main', url: 'https://github.com/Harihshshyam/java-maven-app.git'
-            }
-        }
-
-        stage('Build with Maven') {
+        stage('Build Maven App') {
             steps {
                 sh 'mvn clean package'
             }
@@ -23,40 +15,35 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("${DOCKER_IMAGE}")
+                    docker.build("sagar592/java-maven-app:${BUILD_NUMBER}")
                 }
             }
         }
 
-        stage('Push Docker Image to DockerHub') {
+        stage('Push Docker Image') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS_ID}") {
-                        dockerImage.push("latest")
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKERHUB_CREDENTIALS}") {
+                        docker.image("sagar592/java-maven-app:${BUILD_NUMBER}").push()
                     }
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG_FILE')]) {
-                    sh '''
-                        export KUBECONFIG=$KUBECONFIG_FILE
-                        kubectl apply -f k8s/deployment.yaml
-                        kubectl apply -f k8s/service.yaml
-                    '''
-                }
-            }
-        }
+        // stage('Deploy to Kubernetes') {
+        //     steps {
+        //         sh 'kubectl apply -f k8s/deployment.yaml'
+        //         sh 'kubectl apply -f k8s/service.yaml'
+        //     }
+        // }
     }
 
     post {
         success {
-            echo '🚀 Deployment Complete!'
+            echo "✅ Build and Push Successful!"
         }
         failure {
-            echo '❌ Build or Deployment Failed'
+            echo "❌ Build or Push Failed"
         }
     }
 }
